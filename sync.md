@@ -15,20 +15,45 @@ Treat system or internal skills as out of scope for the ledger. Exclude paths un
 ## Workflow
 
 1. Read `~/.thedon/config.yaml` first when it exists.
-2. Identify the current coding agent and its single relevant global skills root.
-3. Identify the ledger source and local cache.
-4. Inspect the existing local checkout before changing anything.
-5. Clone or pull the ledger repo if needed.
-6. Compare the ledger skills subtree against the current agent's global skills root only.
-7. Exclude system or internal skills from the comparison, especially anything under `.system/`.
-8. If the current agent has fewer non-system skills than the ledger, fetch missing ledger skills into the current agent's root.
-9. If the current agent has more non-system skills than the ledger, sync those missing agent skills into the ledger cache.
-10. If new non-system skills were synced into the ledger cache, ask the user whether to push them to the ledger GitHub remote.
-11. Report what changed and what still requires manual resolution.
+2. If `~/.thedon/config.yaml` does not exist, ask the user to provide the URL for an existing GitHub repo to serve as the ledger, or to create an empty repo first if they do not already have one.
+3. If `~/.thedon/config.yaml` does not exist, create it from the template in this skill after the user provides the ledger repo URL.
+4. Identify the current coding agent and its single relevant global skills root.
+5. Identify the ledger source and local cache.
+6. Inspect the existing local checkout before changing anything.
+7. Clone or pull the ledger repo if needed.
+8. Compare the ledger skills subtree against the current agent's global skills root only.
+9. Exclude system or internal skills from the comparison, especially anything under `.system/`.
+10. If the current agent has fewer non-system skills than the ledger, fetch missing ledger skills into the current agent's root.
+11. If the current agent has more non-system skills than the ledger, sync those missing agent skills into the ledger cache.
+12. If new non-system skills were synced into the ledger cache, ask the user whether to push them to the ledger GitHub remote.
+13. Report what changed and what still requires manual resolution.
 
 ## Read Config First
 
 When `~/.thedon/config.yaml` exists, treat it as the default control plane for this workflow.
+
+When the config file does not exist:
+
+1. Ask the user to provide the URL for the GitHub repo that will act as the ledger.
+2. If they do not already have one, ask them to create an empty repo first and then provide its URL.
+3. Create `~/.thedon/config.yaml` from this template, replacing the example repo URL with the user-provided URL:
+
+```yaml
+ledger:
+  repo_url: "git@github.com:user/agent-skills.git"
+  local_cache: "~/.thedon/skills"
+
+global_skills:
+  enabled: true
+  ledger_subdir: global_skills
+  roots:
+    claude: ~/.claude/skills
+    cursor: ~/.cursor/skills
+    codex: ~/.agents/skills
+  ignore: [".DS_Store", "*.pyc", "__pycache__"]
+```
+
+If the user has not yet provided the ledger repo URL, stop after requesting that information. If they do not already have a suitable repo, tell them to create an empty repo first. Do not invent a placeholder repo URL and do not continue with clone or sync steps until the URL is available.
 
 Check these fields before inferring paths:
 
@@ -41,7 +66,7 @@ Check these fields before inferring paths:
 - `global_skills.roots.codex`
 - `global_skills.ignore` for files that should not be treated as skill content
 
-If the config is missing, invalid, or still contains placeholders such as `YOUR_USER`, say that explicitly and fall back to a user-provided repo URL or path.
+If the config is missing, invalid, or still contains placeholders such as `YOUR_USER`, say that explicitly. If it is missing, ask the user for the ledger repo URL, or ask them to create an empty GitHub repo first if they do not already have one, then create the config from the template above. If it is invalid or still contains placeholders, fall back to a user-provided repo URL or path.
 
 Do not assume the ledger lives in the current project unless the config or user request says so.
 
