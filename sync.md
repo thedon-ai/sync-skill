@@ -1,32 +1,49 @@
 ---
 name: thedon-sync
-description: Fetch from or sync to a Thedon-style global skills ledger for the current coding agent only. Use when the agent is asked to compare its own global skills against the ledger, copy missing ledger skills into the current agent's global skills root, copy agent-only skills into the ledger cache, report one-agent drift, or prepare new skills for an optional GitHub push after user confirmation.
+description: Set up or sync a Thedon-style global skills ledger for the current coding agent only. Use when the agent is asked to install local Thedon sync support from this file, create the required config, compare its own global skills against the ledger, copy missing ledger skills into the current agent's global skills root, copy agent-only skills into the ledger cache, report one-agent drift, or prepare new skills for an optional GitHub push after user confirmation.
 ---
 
 # Thedon Sync
 
 ## Overview
 
-Use this skill to compare one coding agent's global skills against the Thedon ledger and reconcile the difference in the direction implied by the comparison.
+Use this skill for two jobs:
+
+1. Setup for first-time users who point the agent at this file directly, usually with a prompt such as `Follow instruction at this file: <GitHub link to sync.md>`.
+2. Sync for repeat users who already installed the local global skill and invoke `$thedon-sync`.
+
+During setup, treat the linked `sync.md` as the source of truth and install a local global skill named `thedon-sync` by copying the full contents of this file into the current agent's global skills root.
+
+During sync, compare one coding agent's global skills against the Thedon ledger and reconcile the difference in the direction implied by the comparison.
 
 Favor inspection first, then clone or pull, then sync only the current agent's global skills root. Do not update Claude or Cursor roots when this skill is being used by Codex.
 Treat system or internal skills as out of scope for the ledger. Exclude paths under `.system/` and do not sync them into or out of the ledger unless the user explicitly asks for that.
 
-## Workflow
+## Modes
+
+Choose the mode explicitly before making changes:
+
+- Use Setup mode when the user points the agent at this file directly, especially through a GitHub URL.
+- Use Setup mode when the local global skill `thedon-sync` is not yet installed.
+- Use Setup mode when config is missing and the user is clearly trying to bootstrap this workflow.
+- Use Sync mode when the user invokes `$thedon-sync` after setup.
+- If `$thedon-sync` is invoked but config is missing or invalid, fall back into the setup subflow needed to repair config, then continue only if the user still wants sync work in the same session.
+
+## Setup Workflow
+
+Setup mode exists to bootstrap local use of `$thedon-sync`.
+
+Follow this exact order:
 
 1. Read `~/.thedon/config.yaml` first when it exists.
-2. If `~/.thedon/config.yaml` does not exist, ask the user to provide the URL for an existing GitHub repo to serve as the ledger, or to create an empty repo first if they do not already have one.
-3. If `~/.thedon/config.yaml` does not exist, create it from the template in this skill after the user provides the ledger repo URL.
-4. Identify the current coding agent and its single relevant global skills root.
-5. Identify the ledger source and local cache.
-6. Inspect the existing local checkout before changing anything.
-7. Clone or pull the ledger repo if needed.
-8. Compare the ledger skills subtree against the current agent's global skills root only.
-9. Exclude system or internal skills from the comparison, especially anything under `.system/`.
-10. If the current agent has fewer non-system skills than the ledger, fetch missing ledger skills into the current agent's root.
-11. If the current agent has more non-system skills than the ledger, sync those missing agent skills into the ledger cache.
-12. If new non-system skills were synced into the ledger cache, ask the user whether to push them to the ledger GitHub remote.
-13. Report what changed and what still requires manual resolution.
+2. Identify the current coding agent and its single relevant global skills root.
+3. If `~/.thedon/config.yaml` does not exist, ask the user to provide the URL for an existing GitHub repo to serve as the ledger, or to create an empty repo first if they do not already have one.
+4. If `~/.thedon/config.yaml` does not exist, create it from the template in this skill after the user provides the ledger repo URL.
+5. Install the local global skill `thedon-sync` into the current agent's global skills root by copying the exact contents of this file into `<current-agent-global-skills-root>/thedon-sync/SKILL.md`.
+6. Report the installed path clearly and tell the user that future sync runs should use `$thedon-sync`.
+7. Stop setup here unless the user explicitly asks to continue with ledger inspection or sync work in the same session.
+
+Setup mode does not automatically clone, pull, compare, sync, stage, or push ledger content unless the user explicitly asks for that after setup is complete.
 
 ## Read Config First
 
@@ -53,7 +70,7 @@ global_skills:
   ignore: [".DS_Store", "*.pyc", "__pycache__"]
 ```
 
-If the user has not yet provided the ledger repo URL, stop after requesting that information. If they do not already have a suitable repo, tell them to create an empty repo first. Do not invent a placeholder repo URL and do not continue with clone or sync steps until the URL is available.
+If the user has not yet provided the ledger repo URL, stop after requesting that information. If they do not already have a suitable repo, tell them to create an empty repo first. Do not invent a placeholder repo URL.
 
 Check these fields before inferring paths:
 
@@ -70,6 +87,25 @@ If the config is missing, invalid, or still contains placeholders such as `YOUR_
 
 Do not assume the ledger lives in the current project unless the config or user request says so.
 
+## Install Local Skill
+
+During Setup mode, install the local global skill after config is ready or confirmed.
+
+- Treat the source `sync.md` file the user linked or referenced as canonical for this setup run.
+- If the source is a GitHub URL to this file, use that linked file as the source of truth.
+- Create `<current-agent-global-skills-root>/thedon-sync/` only if needed.
+- Create `<current-agent-global-skills-root>/thedon-sync/SKILL.md` by copying the exact contents of this file.
+- Do not create a wrapper, placeholder, redirect, or abbreviated summary.
+- Do not install the skill into roots for other agents.
+- Do not stage the new `thedon-sync` skill into the ledger cache during setup by default.
+- Do not offer a GitHub push for the newly installed local skill during setup by default.
+
+If `thedon-sync` already exists locally:
+
+- Reuse it when its purpose is clearly the same.
+- If it differs from this source file, report the drift and ask before overwriting it.
+- Do not silently replace an existing local skill with different content.
+
 ## Agent Scope
 
 Work with one agent root only.
@@ -82,7 +118,27 @@ Ignore roots for other agents during this workflow. Do not mirror files into eve
 
 Example:
 
-- If the invoking agent is Codex and `global_skills.roots.codex` is configured as `~/.agents/skills`, compare only that root against the ledger and ignore `global_skills.roots.claude` and `global_skills.roots.cursor`.
+- If the invoking agent is Codex and `global_skills.roots.codex` is configured as `~/.agents/skills`, install and compare only that root against the ledger and ignore `global_skills.roots.claude` and `global_skills.roots.cursor`.
+
+## Sync Workflow
+
+Sync mode assumes setup is already done and the user enters through `$thedon-sync`.
+
+Follow this order:
+
+1. Read `~/.thedon/config.yaml`.
+2. Identify the current coding agent and its single relevant global skills root.
+3. Identify the ledger source and local cache.
+4. Inspect the existing local checkout before changing anything.
+5. Clone or pull the ledger repo if needed.
+6. Compare the ledger skills subtree against the current agent's global skills root only.
+7. Exclude system or internal skills from the comparison, especially anything under `.system/`.
+8. If the current agent has fewer non-system skills than the ledger, fetch missing ledger skills into the current agent's root.
+9. If the current agent has more non-system skills than the ledger, sync those missing agent skills into the ledger cache.
+10. If new non-system skills were synced into the ledger cache, ask the user whether to push them to the ledger GitHub remote.
+11. Report what changed and what still requires manual resolution.
+
+If config is missing during `$thedon-sync`, fall back to the setup steps needed to create or repair config, then continue only if the user still wants sync work.
 
 ## Inspect The Ledger
 
@@ -161,19 +217,30 @@ If the ledger contains a skill directory without `SKILL.md`, create the folder o
 - Do not run destructive Git commands such as hard reset unless the user explicitly requests it.
 - State exact source and destination paths before copying files.
 - Ask before pushing ledger-cache additions to the remote GitHub repo.
-- Summarize fetched skills, synced skills, and unresolved conflicts separately.
+- Summarize setup actions, fetched skills, synced skills, and unresolved conflicts separately.
 
 ## Example Triggers
 
-- "Use `$thedon-fetch` to check whether my ledger repo has the `postgres-debugger` skill."
-- "Use `$thedon-sync` to check whether my ledger repo has the `postgres-debugger` skill."
-- "Use `$thedon-sync` to compare this agent's global skills with the ledger and fetch any missing ones."
-- "Use `$thedon-sync` to inspect `global_skills/` and tell me which skills for this agent are missing locally."
-- "Use `$thedon-sync` to sync this agent's new local skills into the ledger cache, then ask whether to push them."
+- `Follow instruction at this file: https://github.com/<owner>/<repo>/blob/<branch>/sync.md`
+- `Follow instruction at this file: <link to sync.md file on GitHub>`
+- `Use $thedon-sync to check whether my ledger repo has the postgres-debugger skill.`
+- `Use $thedon-sync to compare this agent's global skills with the ledger and fetch any missing ones.`
+- `Use $thedon-sync to inspect global_skills/ and tell me which skills for this agent are missing locally.`
+- `Use $thedon-sync to sync this agent's new local skills into the ledger cache, then ask whether to push them.`
 
 ## Output
 
-Return:
+In Setup mode, return:
+
+- the source file URL or path you used
+- the current agent root you selected
+- whether `~/.thedon/config.yaml` was reused or created
+- the ledger repo URL or missing prerequisite you identified
+- the local install path for `thedon-sync`
+- whether setup is now complete
+- the exact next command for future runs: `$thedon-sync`
+
+In Sync mode, return:
 
 - the ledger path or repo URL you inspected
 - whether you cloned, pulled, or only inspected
